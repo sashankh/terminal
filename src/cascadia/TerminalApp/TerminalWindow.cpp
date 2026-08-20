@@ -164,6 +164,7 @@ namespace winrt::TerminalApp::implementation
         }
         else if (!_initialContentArgs.empty())
         {
+            _hasInitialContentArgs = true;
             _root->SetStartupActions(std::move(_initialContentArgs));
         }
         else if (const auto& layout = LoadPersistedLayout())
@@ -200,7 +201,7 @@ namespace winrt::TerminalApp::implementation
         // Obviously, don't use the `startupActions` from the settings in the
         // case of a tear-out / reattach. GH#16050
         if (!_hasCommandLineArguments &&
-            _initialContentArgs.empty() &&
+            !_hasInitialContentArgs &&
             _gotSettingsStartupActions)
         {
             _root->SetStartupActions(_settingsStartupArgs);

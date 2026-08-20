@@ -176,6 +176,7 @@ namespace winrt::TerminalApp::implementation
         wil::com_ptr<CommandlineArgs> _appArgs{ nullptr };
         winrt::Microsoft::Terminal::TerminalConnection::ITerminalConnection _startupConnection{ nullptr };
         bool _hasCommandLineArguments{ false };
+        bool _hasInitialContentArgs{ false };
         bool _gotSettingsStartupActions{ false };
         std::vector<winrt::Microsoft::Terminal::Settings::Model::ActionAndArgs> _settingsStartupArgs{};
         Windows::Foundation::IReference<Windows::Foundation::Rect> _contentBounds{ nullptr };
