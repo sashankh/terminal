@@ -570,7 +570,16 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
     // buttons, which will make them clickable. It's perhaps not the right fix,
     // but it works.
     // _GetTopBorderHeight() returns 0 when we're maximized.
-    const auto topBorderHeight = (originalTopHeight == 0) ? -1 : originalTopHeight;
+    auto topBorderHeight = (originalTopHeight == 0) ? -1 : originalTopHeight;
+
+    // GH#20303: In focus mode, push the XAML island down by the full top
+    // resize-handle height so that strip stays uncovered and grabbable (see
+    // _IsFocusModeTopResizeReserved). WM_NCHITTEST for the uncovered strip then
+    // reaches the root window's _OnNcHitTest, which reports HTTOP for it.
+    if (_IsFocusModeTopResizeReserved())
+    {
+        topBorderHeight = _GetResizeHandleHeight();
+    }
 
     const til::point newIslandPos = { 0, topBorderHeight };
 
@@ -604,9 +613,44 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 // - the height of the window's top resize handle
 int NonClientIslandWindow::_GetResizeHandleHeight() const noexcept
 {
+    return _GetResizeHandleHeight(_currentDpi);
+}
+
+// Method Description:
+// - Returns the height of the little space at the top of the window used to
+//   resize the window, computed for a specific DPI. This overload is used when
+//   we need the value for a DPI other than the window's current one (e.g. when
+//   computing sizes for another monitor).
+// Arguments:
+// - dpi: the DPI to compute the resize handle height for
+// Return Value:
+// - the height of the window's top resize handle at the given DPI
+int NonClientIslandWindow::_GetResizeHandleHeight(const UINT dpi) const noexcept
+{
     // there isn't a SM_CYPADDEDBORDER for the Y axis
-    return ::GetSystemMetricsForDpi(SM_CXPADDEDBORDER, _currentDpi) +
-           ::GetSystemMetricsForDpi(SM_CYSIZEFRAME, _currentDpi);
+    return ::GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi) +
+           ::GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi);
+}
+
+// Method Description:
+// - GH#20303: Returns whether we should reserve the full top resize-handle
+//   height above the terminal content for the top window-resize border.
+// - In focus mode there's no titlebar, so the XAML island would otherwise start
+//   just topBorderVisibleHeight (1px) below the top of the window and cover all
+//   but ~1px of the top resize border (which _OnNcHitTest reports as HTTOP),
+//   leaving the top edge nearly impossible to grab while the other three edges
+//   keep their full non-client resize margins. When this returns true, both the
+//   island position (_UpdateIslandPosition) and the reported non-client size
+//   (GetTotalNonClientExclusiveSize) reserve that strip so the top edge is as
+//   resizable as the others.
+// - We only reserve it in focus mode while restorable: not when
+//   maximized/fullscreen (no resizing) and not for the quake window (which
+//   intentionally has no top resize handle).
+// Return Value:
+// - true if the top resize-handle strip should be reserved, false otherwise
+bool NonClientIslandWindow::_IsFocusModeTopResizeReserved() const noexcept
+{
+    return _borderless && !_isMaximized && !_fullscreen && !IsQuakeWindow();
 }
 
 // Method Description:
@@ -869,9 +913,21 @@ til::size NonClientIslandWindow::GetTotalNonClientExclusiveSize(UINT dpi) const 
     // we can just ask that titlebar how big it wants to be.
     const auto titleBarHeight = _titlebar ? static_cast<LONG>(_titlebar.ActualHeight()) * scale : 0;
 
+    // GH#20303: In focus mode the XAML island is pushed down by the full top
+    // resize-handle height (see _UpdateIslandPosition / _IsFocusModeTopResizeReserved)
+    // so the top edge stays as resizable as the others. That reserved strip
+    // isn't terminal content, so include it here too, keeping window<->content
+    // size conversions correct. GetNonClientFrame already contributes
+    // topBorderVisibleHeight via islandFrame.top, so add only the remainder. Use
+    // the requested dpi (which may differ from _currentDpi) so the reserve
+    // matches the monitor we're sizing for.
+    const auto extraTopResizeReserve = _IsFocusModeTopResizeReserved() ?
+                                           _GetResizeHandleHeight(dpi) - topBorderVisibleHeight :
+                                           0;
+
     return {
         islandFrame.right - islandFrame.left,
-        islandFrame.bottom - islandFrame.top + static_cast<til::CoordType>(titleBarHeight)
+        islandFrame.bottom - islandFrame.top + static_cast<til::CoordType>(titleBarHeight) + extraTopResizeReserve
     };
 }
 

@@ -75,8 +75,10 @@ private:
     void _ResizeDragBarWindow() noexcept;
 
     int _GetResizeHandleHeight() const noexcept;
+    int _GetResizeHandleHeight(const UINT dpi) const noexcept;
     til::rect _GetDragAreaRect() const noexcept;
     int _GetTopBorderHeight() const noexcept;
+    bool _IsFocusModeTopResizeReserved() const noexcept;
     LRESULT _dragBarNcHitTest(const til::point pointer);
 
     [[nodiscard]] LRESULT _OnNcCalcSize(const WPARAM wParam, const LPARAM lParam) noexcept;
